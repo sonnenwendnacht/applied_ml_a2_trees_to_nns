@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "created_at_utc": "2026-09-15T03:16:50.894418+00:00",
+  "environment": {
+    "python": "3.14.0",
+    "sklearn": "1.7.2",
+    "xgboost": "3.2.0",
+    "pandas": "2.3.3",
+    "numpy": "2.4.2"
+  },
+  "source_sha256": "5a6141f33867c72566723f9af4b04f0cc6e536f42ebe3a6a09fa3c6db7b29267",
+  "seed": 42,
+  "rows": 800,
+  "sample_sha256": "399ee8a0631a751adfd8facdcf637e02f2dbe5dc67c082c99c5a9591941ef680",
+  "features": [
+    "numeric_0",
+    "numeric_1",
+    "numeric_2",
+    "numeric_3",
+    "numeric_4",
+    "numeric_5",
+    "contact"
+  ],
+  "include_duration": false,
+  "split_sizes": {
+    "train": 559,
+    "validation": 121,
+    "test": 120
+  },
+  "split_sha256": {
+    "train": "a7935cffa702e0dc2731a2d94e9273154970eb11dad72242e5e6d36df77d2f15",
+    "validation": "fe11a16ccb1c54f00499b44db65f440959237331b478b5cb3a83a4ef69a99c52",
+    "test": "68dc49fdceb46f204e333d50e42b12d3384ac6e1eca00f52ea7a80f5a36529d9"
+  },
+  "positive_fraction": {
+    "train": 0.1252236135957066,
+    "validation": 0.12396694214876033,
+    "test": 0.125
+  },
+  "decision_threshold": 0.5,
+  "model_selection": "3-fold stratified CV on training rows, preprocessing fitted inside each fold; average precision scoring",
+  "results": [
+    {
+      "model": "xgboost",
+      "best_params": {
+        "model__max_depth": 5
+      },
+      "cv_average_precision": 0.7495441793984347,
+      "search_and_refit_seconds": 0.4176022039609961,
+      "convergence_warnings": 0,
+      "other_warnings": [],
+      "validation": {
+        "accuracy": 0.9256198347107438,
+        "precision": 0.75,
+        "recall": 0.6,
+        "f1": 0.6666666666666666,
+        "average_precision": 0.7246956295736783
+      },
+      "test": {
+        "accuracy": 0.9166666666666666,
+        "precision": 0.6923076923076923,
+        "recall": 0.6,
+        "f1": 0.6428571428571429,
+        "average_precision": 0.7728576684968648
+      }
+    },
+    {
+      "model": "mlp",
+      "best_params": {
+        "model__hidden_layer_sizes": [
+          64,
+          32
+        ]
+      },
+      "cv_average_precision": 0.7374177769003823,
+      "search_and_refit_seconds": 0.41683280403958634,
+      "convergence_warnings": 7,
+      "other_warnings": [],
+      "validation": {
+        "accuracy": 0.9338842975206612,
+        "precision": 0.7692307692307693,
+        "recall": 0.6666666666666666,
+        "f1": 0.7142857142857143,
+        "average_precision": 0.7774052797803384
+      },
+      "test": {
+        "accuracy": 0.9166666666666666,
+        "precision": 0.6923076923076923,
+        "recall": 0.6,
+        "f1": 0.6428571428571429,
+        "average_precision": 0.7974372749372749
+      }
+    }
+  ],
+  "dataset": {
+    "kind": "synthetic_smoke_data",
+    "generator": "sklearn.make_classification"
+  }
+}

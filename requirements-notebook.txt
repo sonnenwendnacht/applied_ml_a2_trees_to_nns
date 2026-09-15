@@ -1,0 +1,5 @@
+-r requirements.txt
+matplotlib>=3.8,<4
+seaborn>=0.13,<0.14
+ucimlrepo>=0.0.7,<0.1
+jupyterlab>=4,<5

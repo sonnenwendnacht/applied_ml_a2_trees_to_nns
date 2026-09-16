@@ -8,6 +8,7 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-python@v7.0.0
@@ -16,3 +17,4 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
       - run: python compare.py --rows 240 --output runs/ci-smoke.json
+      - run: python repeated_comparison.py --rows 240 --seeds 17 42 --mlp-max-iter 2 --output-dir runs/ci-repeated

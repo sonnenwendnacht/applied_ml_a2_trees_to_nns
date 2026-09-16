@@ -12,6 +12,10 @@ fits preprocessing **inside each cross-validation fold**, excludes post-call
 `duration` by default, and records the data, split, code, and environment used
 for each result.
 
+A September 2026 follow-up repeats paired comparisons on a fixed sample and
+checks sensitivity to the MLP iteration budget. It publishes all three seeds
+at both budgets, including the larger budget's worse held-out AP.
+
 ## Run it
 
 Use Python 3.12 or newer in an isolated environment:
@@ -57,7 +61,59 @@ are not committed.
 See scikit-learn's [guidance on preprocessing and data leakage](https://scikit-learn.org/stable/common_pitfalls.html#data-leakage)
 and the dataset's [feature documentation](https://archive.ics.uci.edu/dataset/222/bank+marketing).
 
-## Recorded result
+## Repeated-seed training-budget study
+
+One fixed **5,000-row sample** (sample seed 42), with `duration` excluded, is used
+for run seeds **17, 42, 2026**. Each seed changes the 3,500/750/750 split, CV
+shuffle, and model initialization together. Both models share that seed's
+splits and CV folds. MLP caps of **150 and 1,500 iterations** were fixed before
+these held-out results were inspected; architecture selection remains
+training-only CV. This is a budget sensitivity study, not test-set tuning.
+
+| Model / MLP iteration cap | Test AP, mean ± sample SD | Test F1 at 0.5, mean ± sample SD | MLP cap warnings across 21 fits |
+| --- | ---: | ---: | ---: |
+| XGBoost (identical at both budgets) | 0.4124 ± 0.0429 | 0.2826 ± 0.0787 | — |
+| MLP / 150 | 0.3629 ± 0.0337 | 0.3203 ± 0.0516 | 21 |
+| MLP / 1,500 | 0.2931 ± 0.0387 | 0.3092 ± 0.0488 | 1 |
+
+The paired test-AP difference (MLP minus XGBoost) is −0.0494 ± 0.0127 at 150
+and −0.1192 ± 0.0148 at 1,500. More training reduced cap warnings but did not
+improve generalization here. All three final refits at the larger cap stopped
+early under the training-loss rule (872, 352, and 1,074 iterations); one inner
+CV fit still reached the cap. Neither stopping nor fewer warnings proves a
+global optimum. `early_stopping=False`: no internal accuracy-based validation
+criterion was introduced.
+
+These are three **overlapping holdouts**, not independent datasets, confidence
+intervals, or a significance test. AP and F1 measure different things: the MLP
+has lower AP here despite higher mean F1 at the fixed threshold. The prior
+2,000-row experiment below is a different sample and cannot isolate the effect
+of changing a training budget.
+
+Records: [150 iterations](results/budget-study-2026-09-16/budget-150.json),
+[1,500 iterations](results/budget-study-2026-09-16/budget-1500.json),
+[exact-repeat checks](results/budget-study-2026-09-16/reproduction.json).
+Each complete three-seed/budget run was repeated in a fresh process: all
+non-clock fields, including metrics, CV candidates, selected parameters,
+refit diagnostics, and prediction hashes, matched exactly on the same machine.
+
+To reproduce, install `requirements-reproducible.txt` instead of the broad
+runtime requirements (recorded Python: 3.14.0), cache the official CSV with the
+single-run command above, then run:
+
+```bash
+python repeated_comparison.py --csv data/bank-full.csv --rows 5000 --sample-seed 42 --seeds 17 42 2026 --mlp-max-iter 150 --output-dir runs/budget-150
+python repeated_comparison.py --csv data/bank-full.csv --rows 5000 --sample-seed 42 --seeds 17 42 2026 --mlp-max-iter 1500 --output-dir runs/budget-1500
+```
+
+Output directories must be new. Metadata is saved before fitting, each seed is
+flushed to `seed-results.jsonl`, and `results.json` is written on completion.
+Only aggregate results and hashes are published, not source rows or predictions.
+The original single-run CLI still defaults to 150; `--mlp-max-iter` makes the
+cap explicit. The repeated runner defaults to 1,500; use the explicit commands
+above to reproduce both prespecified budgets.
+
+## Earlier single-seed result (preserved)
 
 One run on a stratified **2,000-row sample**, seed 42, with `duration` excluded:
 
@@ -85,10 +141,13 @@ separately; its scores are not evidence about the real banking task.
 | [assignment2.ipynb](assignment2.ipynb) | Original notebook, outputs, and larger parameter sweeps, unchanged |
 | [historical/](historical/) | Supplemental plots copied unchanged from the PC coursework folder |
 | [compare.py](compare.py) | New standalone, fold-local preprocessing and model comparison |
-| [tests/test_comparison.py](tests/test_comparison.py) | Six tests of split integrity, preprocessing boundaries, feature policy, and metrics |
+| [repeated_comparison.py](repeated_comparison.py) | Fixed-sample repeated holdouts, paired summaries, incremental provenance |
+| [tests/](tests/) | Tests of split/preprocessing boundaries, metrics, diagnostics, provenance, repeatability, and failure-safe outputs |
 | [VALIDATION.md](VALIDATION.md) | What was tested, provenance, and limitations |
 
-The notebook's historical scores include `duration` and use preprocessing fitted
+The new runners, tests, and budget study are explicitly AI-assisted portfolio
+maintenance, not original submission work. The notebook's historical scores
+include `duration` and use preprocessing fitted
 before inner cross-validation. They are **not directly comparable** with the
 new smaller experiment. Keeping the notebook unchanged preserves the original
 work without silently rewriting its results. Optional notebook dependencies
@@ -99,10 +158,12 @@ rerun during this cleanup.
 
 This is an educational comparison, not a deployed decision system. It uses
 random stratified holdouts rather than chronological or customer-grouped
-evaluation, one seed, a small sample, a limited search, and an untuned decision
-threshold. Next experiments should evaluate temporal generalization, repeat
-seeds, give the MLP a sufficient convergence budget, and choose any threshold
-using validation data rather than the test set.
+evaluation, one fixed subsample, three overlapping repeated holdouts, a limited
+search, and an untuned decision threshold. Future experiments could evaluate
+temporal generalization and regularization, and choose thresholds using
+validation data rather than the test set. The published holdouts have now been
+inspected; further model development needs a new evaluation plan, not repeated
+tuning against these results.
 
 ## Data attribution
 

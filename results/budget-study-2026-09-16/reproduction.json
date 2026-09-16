@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "date": "2026-09-16",
+  "scope": "Two full fresh-process runs per budget, same machine and pinned Python 3.14.0 environment; three seeds per run",
+  "run_seeds": [17, 42, 2026],
+  "sample_seed": 42,
+  "sample_rows": 5000,
+  "excluded_recursive_fields": ["created_at_utc", "search_and_refit_seconds"],
+  "all_other_fields_exactly_equal": true,
+  "sample_and_split_hashes_equal_across_budgets": true,
+  "xgboost_all_nonclock_fields_equal_across_budgets": true,
+  "default_2000_row_baseline_preexisting_nonclock_fields_preserved": true,
+  "reports": [
+    {
+      "mlp_max_iter": 150,
+      "published_file": "budget-150.json",
+      "published_sha256": "d3216105b49cffb5d19a8c92f9885335ac2f18fbee744501f510aab3d3fbb814",
+      "local_repeat_sha256": "f2adeb810fd62dd983a07fbe16fb6079ed0e8af4085a5e069bbb503ab0cfc181"
+    },
+    {
+      "mlp_max_iter": 1500,
+      "published_file": "budget-1500.json",
+      "published_sha256": "0e9852ee7ea3f079ed35902c4fcc4745898deae0ca126e5c4f0c41e95a4248be",
+      "local_repeat_sha256": "7bdaa911724b97349e80f25f74989d57d77e5daee59350afcbd1ba28913ddfa4"
+    }
+  ],
+  "limitations": "Repeat report bytes differ because timestamps and measured fit durations differ. Exact non-clock equality was observed locally, not guaranteed on other hardware or library versions. Raw data, individual predictions and model weights are not published."
+}

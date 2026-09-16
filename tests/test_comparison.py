@@ -1,3 +1,4 @@
+import json
 import unittest
 
 import numpy as np
@@ -8,7 +9,10 @@ from sklearn.model_selection import StratifiedKFold, cross_validate
 from compare import (
     build_pipeline,
     classification_metrics,
+    parameter_metadata,
     prepare_features,
+    probability_sha256,
+    run_comparison,
     split_data,
     synthetic_data,
 )
@@ -86,6 +90,53 @@ class ComparisonTests(unittest.TestCase):
         frame.loc[0, "y"] = "unexpected"
         with self.assertRaises(ValueError):
             prepare_features(frame)
+
+    def test_invalid_iteration_budgets_are_rejected(self):
+        for budget in (0, -1, True, 1.5, "150"):
+            with self.subTest(budget=budget), self.assertRaises(ValueError):
+                run_comparison(synthetic_data(240), mlp_max_iter=budget)
+
+    def test_parameter_sentinels_are_explicit_not_nonstandard_json(self):
+        encoded = parameter_metadata(
+            {"missing": np.float64(np.nan), "layers": (32, 16)}
+        )
+        self.assertEqual(encoded["missing"], {"nonfinite_parameter": "nan"})
+        self.assertEqual(encoded["layers"], [32, 16])
+        json.dumps(encoded, allow_nan=False)
+        with self.assertRaises(TypeError):
+            parameter_metadata(object())
+
+    def test_probability_hash_checks_values_order_and_normalizes_byte_order(self):
+        values = np.array([0.2, 0.8], dtype=">f8")
+        self.assertEqual(
+            probability_sha256(values), probability_sha256(values.astype("<f8"))
+        )
+        self.assertNotEqual(
+            probability_sha256(values), probability_sha256(values[::-1])
+        )
+        with self.assertRaises(ValueError):
+            probability_sha256([float("nan")])
+
+    def test_iteration_diagnostics_and_strict_json_on_real_fit(self):
+        report = run_comparison(synthetic_data(240), mlp_max_iter=1)
+        self.assertEqual(report["training_config"]["mlp_max_iter"], 1)
+        self.assertEqual(report["schema_version"], 2)
+        xgb, mlp = report["results"]
+        self.assertEqual(
+            xgb["selected_estimator_params"]["missing"], {"nonfinite_parameter": "nan"}
+        )
+        self.assertEqual(mlp["refit_diagnostics"]["n_iter"], 1)
+        self.assertEqual(
+            mlp["refit_diagnostics"]["stop_observation"], "iteration_limit_reached"
+        )
+        self.assertEqual(mlp["convergence_warnings"], 7)
+        for model in report["results"]:
+            self.assertEqual(len(model["cv_candidates"]), 2)
+            self.assertEqual(
+                len(model["cv_candidates"][0]["fold_average_precision"]), 3
+            )
+            self.assertEqual(set(model["probability_sha256"]), {"validation", "test"})
+        json.dumps(report, allow_nan=False)
 
 
 if __name__ == "__main__":

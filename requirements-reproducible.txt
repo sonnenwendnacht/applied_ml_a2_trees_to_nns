@@ -1,0 +1,9 @@
+# Exact versions used for results/budget-study-2026-09-16 (Python 3.14.0).
+# Platform/CPU differences can still affect floating-point results.
+numpy==2.4.2
+pandas==2.3.3
+scikit-learn==1.7.2
+xgboost==3.2.0
+scipy==1.16.2
+threadpoolctl==3.6.0
+joblib==1.5.2

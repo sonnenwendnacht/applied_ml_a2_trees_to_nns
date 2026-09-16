@@ -20,7 +20,7 @@ python compare.py --rows 800 --output runs/synthetic.json
 python compare.py --download --rows 2000 --output runs/bank-sample.json
 ```
 
-The six unit tests check:
+The original six unit tests check:
 
 1. Target and post-call duration are excluded from default predictors.
 2. Train/validation/test indices are disjoint, complete, and repeatable.
@@ -33,8 +33,17 @@ The six unit tests check:
 Local validation passed on Python 3.14.0, scikit-learn 1.7.2, XGBoost 3.2.0,
 pandas 2.3.3, and NumPy 2.4.2. Ruff lint and formatting checks also passed.
 GitHub Actions installs the declared runtime dependencies on Python 3.12,
-runs the tests, and executes a 240-row offline comparison on pushes and pull
-requests. Consult the workflow status for the hosted run result.
+runs the tests, and executes single-run and repeated-seed 240-row offline
+comparisons on pushes and pull requests. Consult the workflow status for the
+hosted run result.
+
+The September 16 continuation adds tests for positive iteration budgets,
+strict JSON parameter sentinels, probability-hash ordering, real-fit stopping
+diagnostics, fixed sampling, paired means/sample SD, exact repeated execution,
+invalid configurations, source-byte provenance, output exclusivity and
+incremental records that survive a later failed seed. All 20 tests pass
+on Python 3.12.3 and 3.14.0 with `requirements-reproducible.txt`. Ruff checks
+cover the maintained scripts and tests, not the preserved notebook.
 
 ## Recorded experiments
 
@@ -57,6 +66,53 @@ documentation commit. Version ranges in `requirements.txt` support installation
 but are not a frozen environment; changing library versions or hardware may
 change metrics or timings. Both recorded runs report seven MLP convergence
 warnings, covering six inner-CV fits and the final training-set refit.
+
+## September 16 repeated budget study
+
+`results/budget-study-2026-09-16/` contains a new experiment; the two earlier
+result files above are unchanged. Commands and rounded scores are in the
+README. One stratified 5,000-row sample is chosen once (sample seed 42), and
+run seeds 17/42/2026 each create 3,500/750/750 splits. All seeds and both MLP
+caps (150/1,500) were specified before looking at this study's held-out scores.
+The cap is the only configured treatment difference; training-only CV can
+select a different architecture at each cap. Hence this measures the full
+budget-plus-CV-selection procedure, not only additional optimization steps
+for an identical selected architecture.
+
+Each complete budget run was executed twice in separate processes. Exact
+recursive comparison excludes only `created_at_utc` and
+`search_and_refit_seconds`: every other field matches. Both budgets share
+sample and per-seed split hashes, and all XGBoost non-clock fields are identical
+across budgets. The published [reproduction record](results/budget-study-2026-09-16/reproduction.json)
+identifies the source reports and scope of these checks. Exact equality is a
+same-machine, same-environment observation, not a promise across platforms.
+
+Additive schema-2 single-run records include:
+
+- Full selected estimator parameters. XGBoost's NaN `missing` sentinel is
+  explicitly encoded as `{"nonfinite_parameter": "nan"}` in parameter metadata
+  only; nonfinite metrics are not silently converted to null.
+- Per-candidate mean, population SD and individual fold AP from GridSearchCV;
+  repeated-run summaries separately use **sample** SD across the three seeds.
+- Final MLP refit iteration count, loss, cap and observed stopping condition.
+  Warning totals cover six inner-CV fits plus the refit; they do not give
+  individual CV-fit iteration counts.
+- SHA-256 of ordered validation/test probabilities encoded as little-endian
+  float64 bytes, without publishing individual predictions.
+
+The repeated report adds exact raw CSV/source hashes, fixed-sample and source
+row-position hashes, dependencies, paired AP differences and limitations.
+Pinned requirements capture the direct numerical stack; they are not a full
+OS/transitive-dependency lock. A default-150 rerun of the earlier 2,000-row
+experiment before/after the diagnostic changes matched every pre-existing
+non-clock metric, selected parameter, sample and split field exactly.
+
+The larger cap reduces 21 iteration-limit warnings to one across three
+seven-fit searches but lowers mean test AP from 0.3629 to 0.2931. This is not
+claimed as an accuracy improvement. Lower training loss alongside worse
+held-out scores is consistent with overfitting; this small comparison does not
+establish a unique cause. There is no independence, confidence-interval or
+significance claim for the overlapping repeated holdouts.
 
 ## Interpreting the historical notebook
 

@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import platform
 import time
 import urllib.request
@@ -141,7 +142,39 @@ def classification_metrics(target, probabilities):
     }
 
 
-def run_comparison(frame, seed=42, include_duration=False):
+def parameter_metadata(value):
+    """Encode estimator parameters, including XGBoost's missing-value sentinel.
+
+    Only parameter metadata uses this representation. Nonfinite metrics must
+    still fail strict JSON serialization rather than silently becoming null.
+    """
+    if isinstance(value, np.generic):
+        value = value.item()
+    if isinstance(value, float) and not math.isfinite(value):
+        return {"nonfinite_parameter": str(value)}
+    if isinstance(value, dict):
+        return {key: parameter_metadata(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [parameter_metadata(item) for item in value]
+    if value is None or isinstance(value, (str, bool, int, float)):
+        return value
+    raise TypeError(f"unsupported estimator parameter type: {type(value).__name__}")
+
+
+def probability_sha256(probabilities):
+    values = np.asarray(probabilities, dtype="<f8")
+    if not np.isfinite(values).all():
+        raise ValueError("predicted probabilities must be finite")
+    return hashlib.sha256(values.tobytes()).hexdigest()
+
+
+def run_comparison(frame, seed=42, include_duration=False, *, mlp_max_iter=150):
+    if (
+        isinstance(mlp_max_iter, bool)
+        or not isinstance(mlp_max_iter, int)
+        or mlp_max_iter < 1
+    ):
+        raise ValueError("mlp_max_iter must be a positive integer")
     features, target = prepare_features(frame, include_duration)
     if len(frame) < 200 or target.value_counts().min() < 20:
         raise ValueError("use at least 200 rows and at least 20 examples of each class")
@@ -162,7 +195,9 @@ def run_comparison(frame, seed=42, include_duration=False):
         ),
         (
             "mlp",
-            MLPClassifier(max_iter=150, early_stopping=False, random_state=seed),
+            MLPClassifier(
+                max_iter=mlp_max_iter, early_stopping=False, random_state=seed
+            ),
             {"model__hidden_layer_sizes": [(32,), (64, 32)]},
         ),
     ]
@@ -183,6 +218,7 @@ def run_comparison(frame, seed=42, include_duration=False):
                 warnings.simplefilter("always", ConvergenceWarning)
                 search.fit(features.iloc[train], target.iloc[train])
             elapsed = time.perf_counter() - start
+            fitted_model = search.best_estimator_.named_steps["model"]
             result = {
                 "model": name,
                 "best_params": search.best_params_,
@@ -198,15 +234,50 @@ def run_comparison(frame, seed=42, include_duration=False):
                         if not issubclass(w.category, ConvergenceWarning)
                     }
                 ),
+                "selected_estimator_params": parameter_metadata(
+                    fitted_model.get_params()
+                ),
+                "cv_candidates": [
+                    {
+                        "params": parameter_metadata(params),
+                        "mean_average_precision": float(
+                            search.cv_results_["mean_test_score"][candidate]
+                        ),
+                        "std_average_precision": float(
+                            search.cv_results_["std_test_score"][candidate]
+                        ),
+                        "fold_average_precision": [
+                            float(
+                                search.cv_results_[f"split{fold}_test_score"][candidate]
+                            )
+                            for fold in range(3)
+                        ],
+                    }
+                    for candidate, params in enumerate(search.cv_results_["params"])
+                ],
+                "probability_sha256": {},
             }
+            if name == "mlp":
+                result["refit_diagnostics"] = {
+                    "n_iter": int(fitted_model.n_iter_),
+                    "max_iter": mlp_max_iter,
+                    "training_loss": float(fitted_model.loss_),
+                    "stop_observation": (
+                        "iteration_limit_reached"
+                        if fitted_model.n_iter_ >= mlp_max_iter
+                        else "stopped_before_limit_under_training_loss_rule"
+                    ),
+                    "note": "Final training-set refit only; stopping is not proof of global convergence. Warning count covers all six CV fits and the refit.",
+                }
             for split in ("validation", "test"):
                 rows = indices[split]
                 probabilities = search.predict_proba(features.iloc[rows])[:, 1]
                 result[split] = classification_metrics(target.iloc[rows], probabilities)
+                result["probability_sha256"][split] = probability_sha256(probabilities)
             reports.append(result)
     frame_hash = hashlib.sha256(frame.to_csv(index=False).encode()).hexdigest()
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "environment": {
             "python": platform.python_version(),
@@ -230,6 +301,14 @@ def run_comparison(frame, seed=42, include_duration=False):
             name: float(target.iloc[rows].mean()) for name, rows in indices.items()
         },
         "decision_threshold": 0.5,
+        "training_config": {
+            "mlp_max_iter": mlp_max_iter,
+            "mlp_early_stopping": False,
+            "cv_folds": 3,
+            "cv_shuffle": True,
+            "cv_seed": seed,
+            "worker_threads": 1,
+        },
         "model_selection": "3-fold stratified CV on training rows, preprocessing fitted inside each fold; average precision scoring",
         "results": reports,
     }
@@ -254,6 +333,12 @@ def main(argv=None):
     )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
+        "--mlp-max-iter",
+        type=int,
+        default=150,
+        help="positive MLP iteration cap (default: 150)",
+    )
+    parser.add_argument(
         "--include-duration",
         action="store_true",
         help="retrospective comparison only: include post-call duration",
@@ -262,6 +347,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.rows < 0 or 0 < args.rows < 200:
         parser.error("--rows must be 0 or at least 200")
+    if args.mlp_max_iter < 1:
+        parser.error("--mlp-max-iter must be positive")
     if args.output and args.output.exists():
         parser.error(f"output already exists: {args.output}")
     path = args.csv
@@ -295,7 +382,9 @@ def main(argv=None):
                 "kind": "synthetic_smoke_data",
                 "generator": "sklearn.make_classification",
             }
-        report = run_comparison(frame, args.seed, args.include_duration)
+        report = run_comparison(
+            frame, args.seed, args.include_duration, mlp_max_iter=args.mlp_max_iter
+        )
         report["dataset"] = provenance
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as exc:
         parser.error(str(exc))

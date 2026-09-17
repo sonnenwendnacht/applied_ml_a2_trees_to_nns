@@ -7,7 +7,8 @@ for an imbalanced classification problem: predicting term-deposit subscription
 from the UCI Bank Marketing dataset.
 
 The repository preserves Junzhe Zong's original applied-machine-learning
-coursework and adds a small, tested command-line experiment. The new pipeline
+coursework and adds a tested, AI-assisted command-line experiment from September
+2026. The maintained pipeline
 fits preprocessing **inside each cross-validation fold**, excludes post-call
 `duration` by default, and records the data, split, code, and environment used
 for each result.
@@ -16,9 +17,18 @@ A September 2026 follow-up repeats paired comparisons on a fixed sample and
 checks sensitivity to the MLP iteration budget. It publishes all three seeds
 at both budgets, including the larger budget's worse held-out AP.
 
+[Run the comparison](#run-it) · [Paired results](#repeated-seed-training-budget-study) ·
+[Original coursework](#original-coursework-and-new-implementation) · [Validation](VALIDATION.md)
+
+Main finding on the fixed 5,000-row sample: increasing the MLP iteration cap
+within the same CV-selection procedure reduced warnings but lowered mean
+held-out average precision. Selected architectures can differ between caps;
+this compares training-and-selection procedures, not longer training of one
+identical selected model.
+
 ## Run it
 
-Use Python 3.12 or newer in an isolated environment:
+From the repository root, use Python 3.12 or newer in an isolated environment:
 
 ```bash
 python3 -m venv .venv
@@ -77,8 +87,9 @@ training-only CV. This is a budget sensitivity study, not test-set tuning.
 | MLP / 1,500 | 0.2931 ± 0.0387 | 0.3092 ± 0.0488 | 1 |
 
 The paired test-AP difference (MLP minus XGBoost) is −0.0494 ± 0.0127 at 150
-and −0.1192 ± 0.0148 at 1,500. More training reduced cap warnings but did not
-improve generalization here. All three final refits at the larger cap stopped
+and −0.1192 ± 0.0148 at 1,500. Increasing the cap within the CV-selection procedure
+reduced warnings but lowered mean test AP here; selected architectures can
+differ. All three final refits at the larger cap stopped
 early under the training-loss rule (872, 352, and 1,074 iterations); one inner
 CV fit still reached the cap. Neither stopping nor fewer warnings proves a
 global optimum. `early_stopping=False`: no internal accuracy-based validation
@@ -147,8 +158,8 @@ separately; its scores are not evidence about the real banking task.
 
 The new runners, tests, and budget study are explicitly AI-assisted portfolio
 maintenance, not original submission work. The notebook's historical scores
-include `duration` and use preprocessing fitted
-before inner cross-validation. They are **not directly comparable** with the
+include `duration` and use preprocessing fitted before inner cross-validation.
+They are **not directly comparable** with the
 new smaller experiment. Keeping the notebook unchanged preserves the original
 work without silently rewriting its results. Optional notebook dependencies
 are listed in `requirements-notebook.txt`; the full original sweeps were not

@@ -358,14 +358,20 @@ def main(argv=None):
                 Path(__file__).resolve().parent / "data" / "bank-full.csv"
             )
         if path:
-            frame = pd.read_csv(path, sep=";", na_values=["?"])
+            # Parse and fingerprint one snapshot, even if the source changes later.
+            raw = path.read_bytes()
+            frame = pd.read_csv(io.BytesIO(raw), sep=";", na_values=["?"])
             _, target = prepare_features(frame, args.include_duration)
             provenance = {
                 "kind": "bank_csv",
                 "filename": path.name,
-                "file_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "file_sha256": hashlib.sha256(raw).hexdigest(),
                 "full_rows": len(frame),
             }
+            if args.rows > len(frame):
+                raise ValueError(
+                    "requested sample exceeds available CSV rows; use --rows 0 for all rows"
+                )
             if 0 < args.rows < len(frame):
                 selected, _ = train_test_split(
                     np.arange(len(frame)),

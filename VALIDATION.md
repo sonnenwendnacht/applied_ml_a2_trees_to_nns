@@ -45,6 +45,27 @@ incremental records that survive a later failed seed. All 20 tests pass
 on Python 3.12.3 and 3.14.0 with `requirements-reproducible.txt`. Ruff checks
 cover the maintained scripts and tests, not the preserved notebook.
 
+### CSV input-integrity refinement
+
+Later September 16 AI-assisted maintenance tightens only the single-run CLI's
+input handling. A positive `--rows` request larger than its CSV now fails before
+fitting or writing output instead of silently using fewer rows. Parsing and
+SHA-256 hashing use one byte snapshot rather than reading the path twice, so a
+source change between parsing and hashing cannot misidentify the parsed data.
+This does not promise a filesystem-atomic snapshot if another process modifies
+the file during the read itself.
+
+Three new tests bring the suite to 23: oversized requests are rejected before
+fitting, a simulated post-parse file change cannot change the recorded hash,
+and zero/exact/smaller sample sizes remain supported. Both defect regressions
+failed against the preceding release; the valid-size controls already passed.
+All 23 tests pass on Python 3.12.3 and 3.14.0. Training, preprocessing, selection,
+the repeated-run workflow and the existing result records are unchanged.
+A before/after Python 3.12 CLI run on the same 2,000-row UCI sample (seed 42,
+150-iteration cap) matches every non-clock/non-source-hash report field exactly,
+including prediction hashes, selected parameters, metrics and data/split hashes.
+The source CSV and published result files were not modified.
+
 ## Recorded experiments
 
 `results/synthetic-smoke.json` and `results/bank-sample.json` were generated

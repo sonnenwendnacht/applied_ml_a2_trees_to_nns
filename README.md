@@ -45,9 +45,11 @@ python compare.py --download --rows 2000 --output runs/bank-sample.json
 
 The download caches only `bank-full.csv` under ignored `data/`. To use an existing
 semicolon-separated CSV, replace `--download` with `--csv /path/to/bank-full.csv`.
-Use `--rows 0` with real data for the full dataset. Output files are never
-overwritten; choose a new name for each run. The raw dataset and trained models
-are not committed.
+Use `--rows 0` with real data for the full dataset; a positive row count must
+not exceed the available rows. The runner parses and hashes the same CSV byte
+snapshot, so the recorded hash describes the data actually read. Output files
+are never overwritten; choose a new name for each run. The raw dataset and
+trained models are not committed.
 
 ## Experiment design
 
